@@ -140,6 +140,8 @@ function Get-ShutdownAfterGameDownloads {
         if ($activeDownloads) {
             Write-Host 'Checking again in 30 minutes...'
             Start-Sleep -Seconds 1800
+           # Write-Host 'Checking again in 1 minutes...'
+           # Start-Sleep -Seconds 60
         }
     }
 
