@@ -54,32 +54,60 @@ function KillSteam {
     Stop-Computer -Force
 }
 
-function ShutdownAfterSteamDownloads {
+function Get-ShutdownAfterGameDownloads {
     $steamPaths = @(
         'C:\Program Files (x86)\Steam\steamapps\downloading',
         'E:\SteamLibrary\steamapps\downloading'
     )
+    $epicManifestsPath = 'C:\ProgramData\Epic\EpicGamesLauncher\Data\Manifests'
+    
+    Write-Host 'Monitoring download queues for Steam and Epic Games'
 
-    Write-Host 'Monitoring Steam''s download queue on all known drives...'
     $activeDownloads = $true
     while ($activeDownloads) {
         $activeDownloads = $false
+
+        # Check Steam
         foreach ($path in $steamPaths) {
             if ((Test-Path $path) -and (Get-ChildItem $path -Recurse -ErrorAction SilentlyContinue | Measure-Object).Count -gt 0) {
                 $activeDownloads = $true
-                Write-Host "Downloads still active at: $path"
+                Write-Host "Steam downloads still active at: $path"
             }
         }
+
+        # Check Epic
+        if (Test-Path $epicManifestsPath) {
+            $epicManifests = Get-ChildItem $epicManifestsPath -Filter *.item -ErrorAction SilentlyContinue
+            foreach ($manifest in $epicManifests) {
+                $content = Get-Content $manifest.FullName | Out-String
+                if ($content -match '"bIsDownloading"\s*:\s*true') {
+                    $activeDownloads = $true
+                    Write-Host "Epic Games download in progress (manifest: $($manifest.Name))"
+                }
+            }
+
+            # Also check if Pending folder has files
+            $pendingPath = Join-Path $epicManifestsPath 'Pending'
+            if (Test-Path $pendingPath) {
+                if ((Get-ChildItem $pendingPath -Recurse -ErrorAction SilentlyContinue | Measure-Object).Count -gt 0) {
+                    $activeDownloads = $true
+                    Write-Host "Epic Games Pending folder has active files."
+                }
+            }
+        }
+
+        
         if ($activeDownloads) {
             Write-Host 'Checking again in 30 minutes...'
             Start-Sleep -Seconds 1800
         }
     }
 
-    Write-Host 'All Steam downloads have completed.'
+    Write-Host 'All downloads (Steam and Epic) have completed.'
     Start-Sleep -Seconds 10
     KillSteam 300
 }
+
 
 # =======================================
 # Menu & Confirmation
@@ -128,7 +156,7 @@ if ($choice -eq '1') {
     $totalSeconds = Get-ShutdownDelayFromTime
     if ($totalSeconds -eq $null) { exit }
 } elseif ($choice -eq '3') {
-    ShutdownAfterSteamDownloads
+    Get-ShutdownAfterGameDownloads
     exit
 } else {
     Write-Host 'Invalid choice. Exiting.'
