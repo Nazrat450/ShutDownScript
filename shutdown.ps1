@@ -147,7 +147,7 @@ if ($confirm -ne 'Y') {
 Write-Host 'Choose an option:'
 Write-Host '1. Set shutdown after a delay (hours and minutes)'
 Write-Host '2. Set shutdown at a specific time (Australian time, 24-hour format)'
-Write-Host '3. Shutdown 5 minutes after Steam download queue finishes'
+Write-Host '3. Shutdown 5 minutes after Steam and Epic download queues are finished'
 $choice = Read-Host 'Enter 1, 2 or 3'
 
 if ($choice -eq '1') {
