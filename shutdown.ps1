@@ -50,24 +50,66 @@ function KillSteam {
     Start-Sleep -Seconds $postSteamWaitSeconds
 
     Countdown 10
-    Write-Host 'Time''s up. Shutting down system now.'
+    Write-Host "Time's up. Shutting down system now."
     Stop-Computer -Force
 }
 
+function Get-SteamDownloadPaths {
+    $steamRegPath = 'HKLM:\SOFTWARE\WOW6432Node\Valve\Steam'
+    $libraryPaths = @()
+
+    try {
+        $steamInstallPath = (Get-ItemProperty -Path $steamRegPath -ErrorAction Stop).InstallPath
+        $vdfPath = Join-Path $steamInstallPath 'steamapps\libraryfolders.vdf'
+
+        if (Test-Path $vdfPath) {
+            Write-Host "Parsing Steam libraryfolders.vdf at $vdfPath"
+            $vdfContent = Get-Content $vdfPath | Out-String
+
+            $matches = [regex]::Matches($vdfContent, '"path"\s+"([^"]+)"')
+            foreach ($match in $matches) {
+                $libraryPath = $match.Groups[1].Value
+                $downloadPath = Join-Path $libraryPath 'steamapps\downloading'
+                $libraryPaths += $downloadPath
+            }
+
+            Write-Host "Detected Steam download paths:"
+            $libraryPaths | ForEach-Object { Write-Host " - $_" }
+        }
+        else {
+            Write-Host "libraryfolders.vdf not found, using main Steam path only."
+            $libraryPaths += Join-Path $steamInstallPath 'steamapps\downloading'
+        }
+    } catch {
+        Write-Host "Steam registry key not found. Using default fallback."
+        $libraryPaths += 'C:\Program Files (x86)\Steam\steamapps\downloading'
+    }
+
+    return $libraryPaths
+}
+
+function Get-EpicManifestPath {
+    $defaultManifestPath = 'C:\ProgramData\Epic\EpicGamesLauncher\Data\Manifests'
+    if (Test-Path $defaultManifestPath) {
+        Write-Host "Detected Epic Games manifest path: $defaultManifestPath"
+        return $defaultManifestPath
+    } else {
+        Write-Host "Epic manifest path not found. Please verify Epic Games is installed."
+        return $null
+    }
+}
+
 function Get-ShutdownAfterGameDownloads {
-    $steamPaths = @(
-        'C:\Program Files (x86)\Steam\steamapps\downloading',
-        'E:\SteamLibrary\steamapps\downloading'
-    )
-    $epicManifestsPath = 'C:\ProgramData\Epic\EpicGamesLauncher\Data\Manifests'
-    
+    $steamPaths = Get-SteamDownloadPaths
+    $epicManifestsPath = Get-EpicManifestPath
+
     Write-Host 'Monitoring download queues for Steam and Epic Games'
 
     $activeDownloads = $true
     while ($activeDownloads) {
         $activeDownloads = $false
 
-        # Check Steam
+        # Check Steam (multi-library)
         foreach ($path in $steamPaths) {
             if ((Test-Path $path) -and (Get-ChildItem $path -Recurse -ErrorAction SilentlyContinue | Measure-Object).Count -gt 0) {
                 $activeDownloads = $true
@@ -76,7 +118,7 @@ function Get-ShutdownAfterGameDownloads {
         }
 
         # Check Epic
-        if (Test-Path $epicManifestsPath) {
+        if ($epicManifestsPath -ne $null -and (Test-Path $epicManifestsPath)) {
             $epicManifests = Get-ChildItem $epicManifestsPath -Filter *.item -ErrorAction SilentlyContinue
             foreach ($manifest in $epicManifests) {
                 $content = Get-Content $manifest.FullName | Out-String
@@ -86,7 +128,6 @@ function Get-ShutdownAfterGameDownloads {
                 }
             }
 
-            # Also check if Pending folder has files
             $pendingPath = Join-Path $epicManifestsPath 'Pending'
             if (Test-Path $pendingPath) {
                 if ((Get-ChildItem $pendingPath -Recurse -ErrorAction SilentlyContinue | Measure-Object).Count -gt 0) {
@@ -96,7 +137,6 @@ function Get-ShutdownAfterGameDownloads {
             }
         }
 
-        
         if ($activeDownloads) {
             Write-Host 'Checking again in 30 minutes...'
             Start-Sleep -Seconds 1800
@@ -107,7 +147,6 @@ function Get-ShutdownAfterGameDownloads {
     Start-Sleep -Seconds 10
     KillSteam 300
 }
-
 
 # =======================================
 # Menu & Confirmation
@@ -133,10 +172,6 @@ Write-Host '
 .@@@@@@@             @@@@@@@% 
 
 '
-
-
-
-
 
 $confirm = Read-Host 'Are you sure you want to schedule a shutdown? (Y/N)'
 if ($confirm -ne 'Y') {
