@@ -1,5 +1,5 @@
 # =======================================
-# Shutdown Scheduler - Enhanced Version
+#        Shutdown Scheduler
 # =======================================
 
 function Countdown ($seconds) {
@@ -105,47 +105,84 @@ function Get-ShutdownAfterGameDownloads {
 
     Write-Host 'Monitoring download queues for Steam and Epic Games'
 
-    $activeDownloads = $true
-    while ($activeDownloads) {
-        $activeDownloads = $false
+    $previousSteamFileSizes = @{}
 
-        # Check Steam (multi-library)
+    while ($true) {
+        $steamActive = $false
+        $epicActive = $false
+        $steamSizeChanged = $false
+        $currentSteamFileSizes = @{}
+
+        # ----- Check Steam -----
         foreach ($path in $steamPaths) {
-            if ((Test-Path $path) -and (Get-ChildItem $path -Recurse -ErrorAction SilentlyContinue | Measure-Object).Count -gt 0) {
-                $activeDownloads = $true
-                Write-Host "Steam downloads still active at: $path"
+            if (Test-Path $path) {
+                $files = Get-ChildItem $path -Recurse -File -ErrorAction SilentlyContinue
+                if ($files.Count -gt 0) {
+                    $steamActive = $true
+                    Write-Host "Steam downloads still active at: $path"
+
+                    foreach ($file in $files) {
+                        $currentSteamFileSizes[$file.FullName] = $file.Length
+
+                        if ($previousSteamFileSizes.ContainsKey($file.FullName)) {
+                            if ($file.Length -ne $previousSteamFileSizes[$file.FullName]) {
+                                $steamSizeChanged = $true
+                            }
+                        } else {
+                            $steamSizeChanged = $true
+                        }
+                    }
+                }
             }
         }
 
-        # Check Epic
-        if ($epicManifestsPath -ne $null -and (Test-Path $epicManifestsPath)) {
+        if (-not $steamActive) {
+            Write-Host 'No active Steam downloads detected.'
+        } elseif (-not $steamSizeChanged -and ($previousSteamFileSizes.Count -gt 0)) {
+            Write-Host 'Steam files unchanged since last check. Assuming Steam downloads are paused.'
+            $steamActive = $false
+        }
+
+        # ----- Check Epic -----
+        if ($null -ne $epicManifestsPath -and (Test-Path $epicManifestsPath)) {
             $epicManifests = Get-ChildItem $epicManifestsPath -Filter *.item -ErrorAction SilentlyContinue
             foreach ($manifest in $epicManifests) {
                 $content = Get-Content $manifest.FullName | Out-String
                 if ($content -match '"bIsDownloading"\s*:\s*true') {
-                    $activeDownloads = $true
+                    $epicActive = $true
                     Write-Host "Epic Games download in progress (manifest: $($manifest.Name))"
                 }
             }
 
             $pendingPath = Join-Path $epicManifestsPath 'Pending'
             if (Test-Path $pendingPath) {
-                if ((Get-ChildItem $pendingPath -Recurse -ErrorAction SilentlyContinue | Measure-Object).Count -gt 0) {
-                    $activeDownloads = $true
+                if ((Get-ChildItem $pendingPath -Recurse -File -ErrorAction SilentlyContinue | Measure-Object).Count -gt 0) {
+                    $epicActive = $true
                     Write-Host "Epic Games Pending folder has active files."
                 }
             }
         }
 
-        if ($activeDownloads) {
-            Write-Host 'Checking again in 30 minutes...'
-            Start-Sleep -Seconds 1800
-           # Write-Host 'Checking again in 1 minutes...'
-           # Start-Sleep -Seconds 60
+        # ----- Final shutdown condition -----
+        if (-not $steamActive -and -not $epicActive) {
+            Write-Host 'Both Steam and Epic downloads have completed or are paused. Proceeding with shutdown.'
+            break
         }
+
+        # ----- Wait for next loop -----
+        $lastCheckTime = (Get-Date).ToString("hh:mmtt")
+        $totalSteamDownloadSizeBytes = ($currentSteamFileSizes.Values | Measure-Object -Sum).Sum
+        $totalSteamDownloadSizeMB = [math]::Round($totalSteamDownloadSizeBytes / 1MB, 2)
+        Write-Host "Checking again in 30 minutes... Last check at $lastCheckTime"
+        Write-Host "Current Steam download size: $totalSteamDownloadSizeMB MB"
+
+        $previousSteamFileSizes = $currentSteamFileSizes
+
+        Start-Sleep -Seconds 1800
+        #Start-Sleep -Seconds 30
     }
 
-    Write-Host 'All downloads (Steam and Epic) have completed.'
+    Write-Host 'All downloads (Steam and Epic) have completed or are paused. Preparing for shutdown.'
     Start-Sleep -Seconds 10
     KillSteam 300
 }
@@ -191,7 +228,7 @@ if ($choice -eq '1') {
     $totalSeconds = Get-ShutdownDelayFromDuration
 } elseif ($choice -eq '2') {
     $totalSeconds = Get-ShutdownDelayFromTime
-    if ($totalSeconds -eq $null) { exit }
+    if ($null -eq $totalSeconds) { exit }
 } elseif ($choice -eq '3') {
     Get-ShutdownAfterGameDownloads
     exit
