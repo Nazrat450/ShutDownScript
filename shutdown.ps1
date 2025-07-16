@@ -78,7 +78,7 @@ function Get-SteamDownloadPaths {
         $vdfPath = Join-Path $steamInstallPath 'steamapps\libraryfolders.vdf'
 
         if (Test-Path $vdfPath) {
-            Write-Host "Parsing Steam libraryfolders.vdf at $vdfPath"
+           # Write-Host "Parsing Steam libraryfolders.vdf at $vdfPath"
             $vdfContent = Get-Content $vdfPath | Out-String
 
             $matches = [regex]::Matches($vdfContent, '"path"\s+"([^"]+)"')
@@ -173,7 +173,7 @@ function Get-ShutdownAfterGameDownloads {
             if (Test-Path $pendingPath) {
                 if ((Get-ChildItem $pendingPath -Recurse -File -ErrorAction SilentlyContinue | Measure-Object).Count -gt 0) {
                     $epicActive = $true
-                    Write-Host "Epic Games Pending folder has active files."
+                    Write-Host "Epic Games download in progress"
                 }
             }
         }
