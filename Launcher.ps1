@@ -5,7 +5,6 @@
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-# Path to your Shutdown.ps1 (adjust name if yours is different)
 $shutdownScript = Join-Path $scriptDir 'Shutdown.ps1'
 
 

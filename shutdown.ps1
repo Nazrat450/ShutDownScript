@@ -11,6 +11,21 @@ function Countdown ($seconds) {
     }
 }
 
+function Show-Countdown {
+    param (
+        [int]$Seconds,
+        [string]$Activity = "Waiting...",
+        [string]$Status = "Countdown in progress"
+    )
+    for ($i = $Seconds; $i -ge 0; $i--) {
+        $percent = (($Seconds - $i) / $Seconds) * 100
+        $timeLeft = [TimeSpan]::FromSeconds($i).ToString("hh\:mm\:ss")
+        Write-Progress -Activity $Activity -Status "$Status ($timeLeft remaining)" -PercentComplete $percent
+        Start-Sleep -Seconds 1
+    }
+    Write-Progress -Activity $Activity -Completed
+}
+
 function Get-ShutdownDelayFromDuration {
     $hours = Read-Host 'Enter hours until shutdown'
     $minutes = Read-Host 'Enter minutes until shutdown'
@@ -47,9 +62,9 @@ function KillSteam {
 
     $waitSpan = New-TimeSpan -Seconds $postSteamWaitSeconds
     Write-Host "Waiting $($waitSpan.Hours + $waitSpan.Days * 24) hour(s) and $($waitSpan.Minutes) minute(s) before shutdown..."
-    Start-Sleep -Seconds $postSteamWaitSeconds
+    Show-Countdown -Seconds $postSteamWaitSeconds -Activity "Post-Steam wait" -Status "Shutdown in progress"
 
-    Countdown 10
+    Show-Countdown -Seconds 10 -Activity "Final Shutdown" -Status "Shutting down shortly"
     Write-Host "Time's up. Shutting down system now."
     Stop-Computer -Force
 }
@@ -178,12 +193,12 @@ function Get-ShutdownAfterGameDownloads {
 
         $previousSteamFileSizes = $currentSteamFileSizes
 
-        Start-Sleep -Seconds 1800
+        Show-Countdown -Seconds 1800 -Activity "Monitoring Downloads" -Status "Next check in"
         #Start-Sleep -Seconds 30
     }
 
     Write-Host 'All downloads (Steam and Epic) have completed or are paused. Preparing for shutdown.'
-    Start-Sleep -Seconds 10
+    Show-Countdown -Seconds 10 -Activity "Preparing Shutdown" -Status "Closing Steam soon"
     KillSteam 300
 }
 
@@ -271,5 +286,5 @@ if ($waitBeforeSteamHours -gt 0) {
     ) before checking for Steam..."
 }
 
-Start-Sleep -Seconds $steamWaitSeconds
+Show-Countdown -Seconds $steamWaitSeconds -Activity "Waiting before closing Steam" -Status "Pre-shutdown hold"
 KillSteam $postSteamWaitSeconds
