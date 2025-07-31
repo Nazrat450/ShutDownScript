@@ -1,4 +1,4 @@
-🖥️ Shutdown Scheduler - PowerShell Script
+🖥️ Shutdown Scheduler PowerShell Script
 This script allows you to schedule a Windows system shutdown with optional Steam download monitoring and staged delay handling.
 
 📦 Features
@@ -23,7 +23,7 @@ Waits remaining time before shutdown
 🛠️ Requirements
 PowerShell 5.1+
 
-Admin privileges (required to execute shutdown and stop Steam)
+Admin privileges (required to execute shutdown and stop Steam and Epic)
 
 🚀 How to Use
 Open PowerShell as Administrator
@@ -53,6 +53,7 @@ E:\SteamLibrary\steamapps\downloading
 You can modify these paths inside the script ($steamPaths) if your Steam library is elsewhere.
 
 It checks every 30 minutes for active downloads. Once all are complete:
+Note currently can not tell if Epic downloads are paused.
 
 Waits 10 seconds
 
@@ -74,7 +75,7 @@ Choose option 2 → Enter: 23:45
 Shutdown after downloads finish:
 
 
-Choose option 3 → Monitors until Steam downloads stop
+Choose option 3 → Monitors until Steam and Epic downloads stop
 🛑 Permissions Note
 If you see a policy error like:
 
